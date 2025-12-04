@@ -11,6 +11,7 @@ import typer
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -19,6 +20,7 @@ from core.flipbook_builder import FlipbookBuilder
 from core.image_cleaner import ImageCleaner
 from core.import_pipeline import ImportPipeline
 from core.meta_agent import MetaAgent
+from core.natural_language_interface import NaturalLanguageInterface
 from core.ritual_context import compute_context
 from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase, TextSource, init_db
 
@@ -27,12 +29,44 @@ app = FastAPI(title="Agentic Ritual Engine", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"]
 )
 
 kb = SymbolicKnowledgeBase()
 command_parser = CommandParser()
+nl_interface: NaturalLanguageInterface | None = None
+
+
+class ChatRequest(BaseModel):
+    """Request model for chat endpoint."""
+
+    query: str
+    maintain_context: bool = True
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat endpoint."""
+
+    intent: str
+    parameters: Dict[str, Any]
+    confidence: float
+    raw_query: str
+    response: str
+
+
+def get_nl_interface() -> NaturalLanguageInterface:
+    """Get or create the natural language interface singleton."""
+    global nl_interface
+    if nl_interface is None:
+        try:
+            nl_interface = NaturalLanguageInterface()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Natural language interface not available: {str(e)}. Set ANTHROPIC_API_KEY environment variable."
+            )
+    return nl_interface
 
 
 def get_session() -> Session:
@@ -118,6 +152,35 @@ async def api_image(image_id: int, session: Session = Depends(get_session)) -> d
 @app.get("/context")
 async def api_context(lat: float, lon: float) -> dict[str, Any]:
     return compute_context(lat=lat, lon=lon)
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def api_chat(request: ChatRequest) -> ChatResponse:
+    """Natural language chat interface for the ritual engine.
+
+    Accepts natural language queries and returns structured responses with intent,
+    parameters, and guidance on how to execute the requested action.
+
+    Example queries:
+    - "Show me all Saturn symbols"
+    - "What's the current moon phase?"
+    - "Generate a flipbook of Solomonic tradition"
+    - "Find seals related to Mars"
+    """
+    nl = get_nl_interface()
+    try:
+        result = nl.chat(request.query, maintain_context=request.maintain_context)
+        return ChatResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+
+@app.post("/chat/reset")
+async def api_chat_reset() -> dict[str, str]:
+    """Reset the conversation history for the natural language interface."""
+    nl = get_nl_interface()
+    nl.reset_conversation()
+    return {"status": "ok", "message": "Conversation history reset"}
 
 
 def serialize_symbol(symbol: Symbol) -> dict[str, Any]:
@@ -260,6 +323,93 @@ def cli_run(api_host: str = "0.0.0.0", api_port: int = 8000) -> None:
 @cli.command("version")
 def cli_version() -> None:
     typer.echo("agentic-ritual-engine 0.2.0")
+
+
+@cli.command("chat")
+def cli_chat(
+    api_key: str | None = typer.Option(None, "--api-key", envvar="ANTHROPIC_API_KEY"),
+    interactive: bool = typer.Option(True, "--interactive/--single"),
+) -> None:
+    """Start an interactive natural language chat session with the ritual engine.
+
+    Requires ANTHROPIC_API_KEY environment variable or --api-key option.
+
+    Examples:
+        python -m agentic_ritual_engine.main chat
+        python -m agentic_ritual_engine.main chat --api-key sk-...
+    """
+    try:
+        from core.natural_language_interface import NaturalLanguageInterface
+    except ImportError as e:
+        typer.echo(f"[error] Failed to import NL interface: {e}", err=True)
+        typer.echo("[error] Run: pip install anthropic", err=True)
+        raise typer.Exit(1)
+
+    try:
+        nl = NaturalLanguageInterface(api_key=api_key)
+    except ValueError as e:
+        typer.echo(f"[error] {e}", err=True)
+        typer.echo("[info] Set ANTHROPIC_API_KEY environment variable or use --api-key option", err=True)
+        raise typer.Exit(1)
+
+    if interactive:
+        typer.echo("╔═══════════════════════════════════════════════════════════╗")
+        typer.echo("║   Agentic Ritual Engine - Natural Language Interface     ║")
+        typer.echo("╚═══════════════════════════════════════════════════════════╝")
+        typer.echo("")
+        typer.echo("Ask questions about symbols, generate flipbooks, get celestial context,")
+        typer.echo("or inquire about the ritual engine itself.")
+        typer.echo("")
+        typer.echo("Type 'exit', 'quit', or press Ctrl+C to leave.")
+        typer.echo("Type 'reset' to clear conversation history.")
+        typer.echo("")
+        typer.echo("─" * 60)
+        typer.echo("")
+
+        while True:
+            try:
+                query = typer.prompt("You", prompt_suffix=" ▸ ")
+
+                if not query.strip():
+                    continue
+
+                if query.lower() in ["exit", "quit", "q"]:
+                    typer.echo("\n[info] Farewell, seeker of knowledge.")
+                    break
+
+                if query.lower() == "reset":
+                    nl.reset_conversation()
+                    typer.echo("[info] Conversation history cleared.\n")
+                    continue
+
+                result = nl.chat(query, maintain_context=True)
+
+                typer.echo("")
+                typer.secho(f"Assistant ▸ {result['response']}", fg=typer.colors.CYAN)
+                typer.echo("")
+                typer.secho(f"  Intent: {result['intent']}", fg=typer.colors.BRIGHT_BLACK, dim=True)
+                typer.secho(f"  Confidence: {result['confidence']:.2f}", fg=typer.colors.BRIGHT_BLACK, dim=True)
+                if result['parameters']:
+                    params_str = json.dumps(result['parameters'], indent=2)
+                    typer.secho(f"  Parameters: {params_str}", fg=typer.colors.BRIGHT_BLACK, dim=True)
+                typer.echo("")
+                typer.echo("─" * 60)
+                typer.echo("")
+
+            except KeyboardInterrupt:
+                typer.echo("\n\n[info] Chat session interrupted. Farewell.")
+                break
+            except Exception as e:
+                typer.echo(f"\n[error] {e}\n", err=True)
+    else:
+        # Single query mode
+        query = typer.prompt("Enter your query")
+        try:
+            result = nl.chat(query, maintain_context=False)
+            typer.echo(json.dumps(result, indent=2))
+        except Exception as e:
+            typer.echo(f"[error] {e}", err=True)
+            raise typer.Exit(1)
 
 
 if __name__ == "__main__":

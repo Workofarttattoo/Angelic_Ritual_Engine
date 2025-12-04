@@ -9,10 +9,28 @@ Agentic Ritual Engine is an experimental toolkit for orchestrating symbolic impo
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r agentic_ritual_engine/requirements.txt
 ```
 
 The project expects Python 3.11. If your system default differs, install 3.11 (e.g., via `pyenv`) before creating the virtualenv.
+
+### Natural Language Interface Setup
+
+The Agentic Ritual Engine now includes a natural language interface powered by Claude AI. To use this feature:
+
+1. Get an API key from [Anthropic Console](https://console.anthropic.com/)
+2. Set your API key as an environment variable:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-api03-your-key-here
+```
+
+Or create a `.env` file (copy from `.env.example`):
+
+```bash
+cp .env.example .env
+# Edit .env and add your API key
+```
 
 ---
 ## Project Layout
@@ -42,6 +60,51 @@ Sources are grouped by tradition with `highlights` bullet points for quick conte
 - `kabbalistic_currents`
 
 Add your own PDFs or URLs under the appropriate group before running ingestion.
+
+---
+## Natural Language Interface
+
+The ritual engine now supports natural language interaction! Ask questions, search for symbols, generate flipbooks, and get celestial context using conversational queries.
+
+### Interactive Chat Mode
+
+Start an interactive chat session:
+
+```bash
+python -m agentic_ritual_engine.main chat
+```
+
+Example queries:
+- "Show me all Saturn symbols"
+- "What's the current moon phase in Las Vegas?"
+- "Generate a flipbook of Solomonic tradition"
+- "Find all planetary seals"
+- "What symbols are associated with Mars?"
+- "Tell me about the Seal of Solomon"
+
+The chat interface maintains conversation context, so you can ask follow-up questions naturally. Type `reset` to clear history, or `exit`/`quit` to leave.
+
+### REST API Chat Endpoint
+
+Use the natural language interface via HTTP POST:
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show me all Saturn symbols", "maintain_context": true}'
+```
+
+Response includes:
+- `intent`: The detected action (e.g., "search_symbols")
+- `parameters`: Extracted parameters (e.g., {"planet": "Saturn"})
+- `confidence`: Confidence score (0.0-1.0)
+- `response`: Natural language guidance on executing the action
+
+Reset conversation history:
+
+```bash
+curl -X POST http://localhost:8000/chat/reset
+```
 
 ---
 ## Database & CLI Workflow
@@ -97,10 +160,17 @@ Run the API with `python -m agentic_ritual_engine.main run`. Endpoints:
 - `GET /symbols/{slug}` – fetch a single symbol with associated images and metadata.
 - `GET /images/{id}` – retrieve glyph metadata (paths, dimensions, bbox).
 - `GET /context?lat=&lon=` – compute celestial context (moon phase, sunrise/sunset, planetary hour).
+- `POST /chat` – natural language interface for conversational queries (requires ANTHROPIC_API_KEY).
+- `POST /chat/reset` – reset the conversation history for the natural language interface.
 
 Example using `curl`:
 ```bash
 curl 'http://localhost:8000/symbols?query=saturn'
+
+# Natural language query
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Find all Solomonic seals"}'
 ```
 
 ---
