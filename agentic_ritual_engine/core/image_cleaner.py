@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import cv2
 import numpy as np
@@ -231,7 +231,7 @@ def cli_batch_clean(
     in_dir: Path = typer.Option(..., "--in", help="Directory with extracted candidates."),
     out_dir: Path = typer.Option(..., "--out", help="Destination directory for cleaned PNGs."),
     target_px: int = typer.Option(2000, "--target-px", help="Longest dimension after scaling."),
-    symbol_slug: str | None = typer.Option(
+    symbol_slug: Optional[str] = typer.Option(
         None,
         "--symbol",
         help="Optional symbol slug to associate cleaned glyphs with.",

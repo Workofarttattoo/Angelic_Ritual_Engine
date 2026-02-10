@@ -8,9 +8,14 @@ from typing import Any, Dict
 
 import streamlit as st
 
-from core.flipbook_builder import FlipbookBuilder
-from core.ritual_context import compute_context
-from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase
+try:
+    from agentic_ritual_engine.core.flipbook_builder import FlipbookBuilder
+    from agentic_ritual_engine.core.ritual_context import compute_context
+    from agentic_ritual_engine.core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase
+except ModuleNotFoundError:
+    from core.flipbook_builder import FlipbookBuilder
+    from core.ritual_context import compute_context
+    from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase
 from sqlalchemy.orm import selectinload
 
 

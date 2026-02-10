@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
 
 import cv2
@@ -57,8 +57,12 @@ class ImportPipeline:
             local_path = entry.get("local_path")
 
             if url:
-                local_path = str(self._download_remote(url, title))
-                typer.echo(f"[info] downloaded {url} -> {local_path}")
+                try:
+                    local_path = str(self._download_remote(url, title))
+                    typer.echo(f"[info] downloaded {url} -> {local_path}")
+                except requests.RequestException as exc:
+                    typer.echo(f"[warn] skipping {url}: {exc}")
+                    continue
             elif local_path:
                 resolved = Path(local_path).expanduser()
                 if not resolved.exists():
@@ -402,7 +406,7 @@ def cli_catalog_candidate(
     ),
     deity_or_spirit: str = typer.Option(..., "--deity-or-spirit", help="Linked entity."),
     page: int = typer.Option(..., "--page", help="Page number hint."),
-    tags: str | None = typer.Option(None, "--tags", help="JSON list of tags."),
+    tags: Optional[str] = typer.Option(None, "--tags", help="JSON list of tags."),
 ) -> None:
     pipeline = ImportPipeline()
     pipeline.catalog_candidate(

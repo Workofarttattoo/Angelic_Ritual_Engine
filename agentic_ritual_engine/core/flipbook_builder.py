@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -182,12 +182,12 @@ class FlipbookBuilder:
 @cli.command("make-flipbook")
 def cli_make_flipbook(
     output: Path = typer.Option(Path("flipbook.html"), "--output", help="HTML output path."),
-    filter_expr: str | None = typer.Option(
+    filter_expr: Optional[str] = typer.Option(
         None,
         "--filter",
         help="Simple key=value pairs to filter symbols (comma separated).",
     ),
-    query: str | None = typer.Option(None, "--query", help="Text query against names, slugs, tradition."),
+    query: Optional[str] = typer.Option(None, "--query", help="Text query against names, slugs, tradition."),
 ) -> None:
     builder = FlipbookBuilder()
     filters = _parse_filter_expr(filter_expr)

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import typer
 import uvicorn
@@ -14,13 +15,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from core.command_parser import CommandParser
-from core.flipbook_builder import FlipbookBuilder
-from core.image_cleaner import ImageCleaner
-from core.import_pipeline import ImportPipeline
-from core.meta_agent import MetaAgent
-from core.ritual_context import compute_context
-from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase, TextSource, init_db
+try:
+    from agentic_ritual_engine.core.command_parser import CommandParser
+    from agentic_ritual_engine.core.flipbook_builder import FlipbookBuilder
+    from agentic_ritual_engine.core.image_cleaner import ImageCleaner
+    from agentic_ritual_engine.core.import_pipeline import ImportPipeline
+    from agentic_ritual_engine.core.meta_agent import MetaAgent
+    from agentic_ritual_engine.core.ritual_context import compute_context
+    from agentic_ritual_engine.core.symbolic_kb import (
+        GlyphImage,
+        Symbol,
+        SymbolicKnowledgeBase,
+        TextSource,
+        init_db,
+    )
+except ModuleNotFoundError:
+    from core.command_parser import CommandParser
+    from core.flipbook_builder import FlipbookBuilder
+    from core.image_cleaner import ImageCleaner
+    from core.import_pipeline import ImportPipeline
+    from core.meta_agent import MetaAgent
+    from core.ritual_context import compute_context
+    from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase, TextSource, init_db
 
 cli = typer.Typer(help="Agentic ritual engine orchestration commands.")
 app = FastAPI(title="Agentic Ritual Engine", version="0.2.0")
@@ -191,7 +207,7 @@ def cli_catalog_candidate(
     evokes_or_invokes: str = typer.Option(..., "--evokes-or-invokes"),
     deity_or_spirit: str = typer.Option(..., "--deity-or-spirit"),
     page: int = typer.Option(..., "--page"),
-    tags: str | None = typer.Option(None, "--tags"),
+    tags: Optional[str] = typer.Option(None, "--tags"),
 ) -> None:
     pipeline = ImportPipeline()
     pipeline.catalog_candidate(
@@ -211,7 +227,7 @@ def cli_batch_clean(
     in_dir: Path = typer.Option(..., "--in"),
     out_dir: Path = typer.Option(..., "--out"),
     target_px: int = typer.Option(2000, "--target-px"),
-    symbol_slug: str | None = typer.Option(None, "--symbol"),
+    symbol_slug: Optional[str] = typer.Option(None, "--symbol"),
 ) -> None:
     cleaner = ImageCleaner()
     cleaner.batch_clean(in_dir=in_dir, out_dir=out_dir, target_px=target_px, symbol_slug=symbol_slug)
@@ -220,8 +236,8 @@ def cli_batch_clean(
 @cli.command("make-flipbook")
 def cli_make_flipbook(
     output: Path = typer.Option(Path("flipbook.html"), "--output"),
-    filter_expr: str | None = typer.Option(None, "--filter"),
-    query: str | None = typer.Option(None, "--query"),
+    filter_expr: Optional[str] = typer.Option(None, "--filter"),
+    query: Optional[str] = typer.Option(None, "--query"),
 ) -> None:
     builder = FlipbookBuilder()
     filters = {} if not filter_expr else json.loads(filter_expr)
@@ -233,7 +249,7 @@ def cli_make_flipbook(
 def cli_run_pulse_map() -> None:
     script = Path(__file__).resolve().parent / "frontend" / "pulse_map_app.py"
     typer.echo(f"[info] launching Streamlit app: {script}")
-    subprocess.run(["streamlit", "run", str(script)], check=True)
+    subprocess.run([sys.executable, "-m", "streamlit", "run", str(script)], check=True)
 
 
 @cli.command("parse")
@@ -248,13 +264,7 @@ def cli_run(api_host: str = "0.0.0.0", api_port: int = 8000) -> None:
     agent = MetaAgent()
     agent.bootstrap()
 
-    uvicorn.run(
-        "main:app",
-        host=api_host,
-        port=api_port,
-        factory=False,
-        log_level="info",
-    )
+    uvicorn.run(app, host=api_host, port=api_port, log_level="info")
 
 
 @cli.command("version")
