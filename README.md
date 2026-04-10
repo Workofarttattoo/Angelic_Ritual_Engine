@@ -1,145 +1,205 @@
 # Agentic Ritual Engine
 
-Agentic Ritual Engine is an experimental toolkit for orchestrating symbolic imports, image cleanup, and immersive visualisation of ritual knowledge. It combines a FastAPI backend, Typer CLI, Streamlit dashboard, and image-processing utilities to ingest esoteric sources, extract sigils, clean imagery, and present the catalog in static flipbooks or interactive UI.
+An orchestration toolkit for ingesting esoteric textual sources, extracting and cleaning symbolic imagery (sigils, seals, planetary glyphs), and presenting the catalog through a REST API, interactive Streamlit dashboard, or static HTML flipbooks.
 
 ---
-## Environment Setup
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+## Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [CLI Reference](#cli-reference)
+- [REST API](#rest-api)
+- [Streamlit Dashboard](#streamlit-dashboard)
+- [Flipbook Generation](#flipbook-generation)
+- [Jiminy Cricket Module](#jiminy-cricket-module)
+- [Testing](#testing)
+- [Docker Deployment](#docker-deployment)
+- [Project Layout](#project-layout)
+- [Contributing](#contributing)
+
+---
+
+## Overview
+
+The Agentic Ritual Engine combines a **FastAPI backend**, **Typer CLI**, **Streamlit dashboard**, and **OpenCV image-processing pipeline** to:
+
+1. **Ingest** curated PDF and web sources from a YAML manifest.
+2. **Render** PDF pages to images, then detect candidate sigils via contour analysis.
+3. **Clean** raw crops into transparent PNGs with thumbnails.
+4. **Catalog** symbols with rich metadata (tradition, deity, planet, element, tags).
+5. **Present** the catalog through REST endpoints, a Streamlit dashboard, or static flipbooks.
+6. **Compute** celestial context (moon phase, planetary hour, sunrise/sunset) for ritual timing.
+
+---
+
+## Architecture
+
+```
+┌──────────────┐     ┌───────────────┐     ┌──────────────┐
+│  YAML Manifest│────▶│ ImportPipeline │────▶│   SQLite DB  │
+│  + PDF Sources│     │  (ingest/OCR)  │     │  (ritual.db) │
+└──────────────┘     └───────┬───────┘     └──────┬───────┘
+                             │                     │
+                     ┌───────▼───────┐     ┌──────▼───────┐
+                     │ ImageCleaner   │     │  FastAPI API  │
+                     │ (OpenCV/PIL)   │     │ GET /symbols  │
+                     └───────┬───────┘     │ GET /context  │
+                             │             └──────┬───────┘
+                     ┌───────▼───────┐            │
+                     │FlipbookBuilder│     ┌──────▼───────┐
+                     │ (Jinja2 HTML) │     │  Streamlit UI │
+                     └───────────────┘     │  (Pulse Map)  │
+                                           └──────────────┘
 ```
 
-The project expects Python 3.11. If your system default differs, install 3.11 (e.g., via `pyenv`) before creating the virtualenv.
-
 ---
-## Project Layout
 
-- `core/`
-  - `command_parser.py` – trigger-based command routing for higher-level automation.
-  - `flipbook_builder.py` – renders cleaned glyphs into static HTML flipbooks.
-  - `image_cleaner.py` – cleans extracted sigils, generates thumbnails, syncs DB records.
-  - `import_pipeline.py` – CLI helpers to ingest sources, render PDFs, detect sigils.
-  - `jimminy_cricket_module.py` – conscience plug-in for runtime checks and reminders.
-  - `meta_agent.py` – FastAPI app factory & meta-agent bootstrapper.
-  - `ritual_context.py` – celestial context calculations.
-  - `symbolic_kb.py` – SQLAlchemy ORM + DAO helpers for symbols, sources, rites, glyphs.
-- `frontend/pulse_map_app.py` – Streamlit dashboard for context + symbol gallery.
-- `data/` – curated manifest (`sources.yaml`) and storage folders for assets.
-- `main.py` – Typer entry point and FastAPI host exposing REST endpoints.
+## Quick Start
 
----
-## Data Manifest (`data/sources.yaml`)
+### Prerequisites
 
-Sources are grouped by tradition with `highlights` bullet points for quick context:
-- `solomonic_grimoires`
-- `enochian_archives`
-- `renaissance_occult_philosophy`
-- `renaissance_theurgy`
-- `folk_and_magical_practice`
-- `kabbalistic_currents`
+- Python 3.11+
+- [Poppler](https://poppler.freedesktop.org/) (for `pdf2image`)
+- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (optional, for OCR enrichment)
 
-Add your own PDFs or URLs under the appropriate group before running ingestion.
-
----
-## Database & CLI Workflow
-
-All CLI commands are available via `python -m agentic_ritual_engine.main <command>`.
+### Local Setup
 
 ```bash
-# 0) Create the SQLite database
+# Clone the repository
+git clone https://github.com/Corporation-Of-Light/Angelic_Ritual_Engine.git
+cd Angelic_Ritual_Engine
+
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# Install the package with dev dependencies
+pip install -e ".[dev]"
+
+# Configure environment
+cp .env.example .env        # edit .env as needed
+
+# Initialise the database
 python -m agentic_ritual_engine.main kb-init
 
-# 1) Ingest sources from the YAML manifest
-python -m agentic_ritual_engine.main ingest-sources --from data/sources.yaml
-
-# 2) Render PDFs to page images (specify source id/slug or title)
-python -m agentic_ritual_engine.main pdf-to-images --source "Key of Solomon the King (Clavicula Salomonis)" --dpi 300
-
-# 3) Detect candidate sigils from rendered pages
-python -m agentic_ritual_engine.main detect-sigils --source key-of-solomon-the-king-clavicula-salomonis --min-area 1200
-
-# 4) Catalog reviewed candidates into the knowledge base
-python -m agentic_ritual_engine.main catalog-candidate \
-  --source key-of-solomon-the-king-clavicula-salomonis \
-  --name "Seal of Saturn" \
-  --tradition "Solomonic" \
-  --function "planetary_seal" \
-  --evokes-or-invokes "invoke" \
-  --deity-or-spirit "Saturn" \
-  --page 42 \
-  --tags '["planetary","saturn"]'
-
-# 5) Clean extracted crops into transparent PNGs and create thumbnails
-python -m agentic_ritual_engine.main batch-clean \
-  --in data/extracted/key-of-solomon-the-king-clavicula-salomonis \
-  --out data/symbols/key-of-solomon-the-king-clavicula-salomonis
-
-# 6) Build an HTML flipbook using current filters
-python -m agentic_ritual_engine.main make-flipbook --filter '{"tradition": "Solomonic"}'
-
-# 7) Launch the Streamlit Pulse Map dashboard
-python -m agentic_ritual_engine.main run-pulse-map
+# Launch the API
+python -m agentic_ritual_engine.main run
 ```
 
-Additional handy commands:
-- `python -m agentic_ritual_engine.main parse "KRONKETA assemble"` – test trigger parsing.
-- `python -m agentic_ritual_engine.main run --api-host 0.0.0.0 --api-port 8080` – host the REST API.
+### Docker Setup
+
+```bash
+cp .env.example .env
+make up                     # or: docker compose up -d --build
+```
+
+The API will be available at `http://localhost:8000` and the Streamlit dashboard at `http://localhost:8501`.
 
 ---
-## FastAPI Endpoints
 
-Run the API with `python -m agentic_ritual_engine.main run`. Endpoints:
+## Configuration
 
-- `GET /symbols?query=&filters=` – list symbols. `filters` accepts JSON (e.g., `{"tradition": "Solomonic"}`).
-- `GET /symbols/{slug}` – fetch a single symbol with associated images and metadata.
-- `GET /images/{id}` – retrieve glyph metadata (paths, dimensions, bbox).
-- `GET /context?lat=&lon=` – compute celestial context (moon phase, sunrise/sunset, planetary hour).
+All settings are configured via environment variables. Copy `.env.example` to `.env` and adjust:
 
-Example using `curl`:
+| Variable | Default | Description |
+|---|---|---|
+| `RITUAL_DB_URL` | `sqlite:///data/ritual.db` | SQLAlchemy database URL |
+| `API_HOST` | `0.0.0.0` | API bind address |
+| `API_PORT` | `8000` | API port |
+| `LOG_LEVEL` | `info` | Uvicorn log level |
+| `TESSERACT_LANG` | `eng` | Tesseract OCR language |
+| `PDF_RENDER_DPI` | `300` | PDF page rendering DPI |
+| `STREAMLIT_SERVER_PORT` | `8501` | Streamlit dashboard port |
+
+---
+
+## CLI Reference
+
+All commands run via `python -m agentic_ritual_engine.main <command>`:
+
+| Command | Description |
+|---|---|
+| `kb-init` | Create/migrate the SQLite database |
+| `ingest-sources --from <yaml>` | Ingest sources from a YAML manifest |
+| `pdf-to-images --source <id/slug> --dpi 300` | Render PDF pages to PNG images |
+| `detect-sigils --source <slug> --min-area 800` | Detect candidate sigils from page images |
+| `catalog-candidate --source <slug> --name ... ` | Persist a reviewed symbol to the database |
+| `batch-clean --in <dir> --out <dir>` | Clean extracted crops into transparent PNGs |
+| `make-flipbook --output flipbook.html` | Generate a static HTML symbol gallery |
+| `run-pulse-map` | Launch the Streamlit Pulse Map dashboard |
+| `parse "<text>"` | Test command trigger parsing |
+| `run --api-host 0.0.0.0 --api-port 8000` | Start the REST API server |
+| `version` | Print the current version |
+
+---
+
+## REST API
+
+Start the server with `python -m agentic_ritual_engine.main run`, then:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/symbols?query=&filters={}` | List symbols. `filters` accepts JSON. |
+| `GET` | `/symbols/{slug}` | Fetch a single symbol with images and metadata. |
+| `GET` | `/images/{id}` | Retrieve glyph image metadata. |
+| `GET` | `/context?lat=&lon=` | Compute celestial context (moon, planetary hour, etc.). |
+| `GET` | `/health` | Health check (via the `create_app` factory). |
+
+**Example:**
+
 ```bash
+# Search for Saturn-related symbols
 curl 'http://localhost:8000/symbols?query=saturn'
+
+# Get celestial context for Las Vegas
+curl 'http://localhost:8000/context?lat=36.17&lon=-115.14'
 ```
 
 ---
-## Streamlit Pulse Map
 
-Launch with:
+## Streamlit Dashboard
+
+The Pulse Map dashboard provides an interactive UI for browsing cataloged symbols:
+
 ```bash
-streamlit run agentic_ritual_engine/frontend/pulse_map_app.py
-# or via CLI wrapper:
 python -m agentic_ritual_engine.main run-pulse-map
+# or directly:
+streamlit run agentic_ritual_engine/frontend/pulse_map_app.py
 ```
 
-Features:
-- Sidebar filters: text search, tradition, evokes/invokes, planet, element, deity/spirit.
-- Date/time + location pickers feed `compute_context` for moon/planetary hour estimates.
-- Context summary metrics (moon phase, weekday, planetary hour).
-- “Hot Symbols” list (newest matches) and grid gallery of thumbnails (click for full PNG).
-- “Build Flipbook” button runs the flipbook builder with current filters.
-
-Ensure the CLI workflow has produced cleaned thumbs and database entries; otherwise the gallery will be empty.
+**Features:**
+- Sidebar filters: text search, tradition, evokes/invokes, planet, element, deity/spirit
+- Date/time + location pickers for celestial context computation
+- Moon phase, weekday, and planetary hour metrics
+- "Hot Symbols" list and thumbnail grid gallery
+- One-click flipbook generation
 
 ---
+
 ## Flipbook Generation
 
-The flipbook builder pulls symbols with transparent glyphs and writes a static HTML gallery.
+Build a static HTML gallery of transparent symbol glyphs:
 
 ```bash
-python -m agentic_ritual_engine.main make-flipbook --output flipbook.html --query saturn --filter '{"tradition": "Solomonic"}'
+python -m agentic_ritual_engine.main make-flipbook \
+  --output flipbook.html \
+  --query saturn \
+  --filter '{"tradition": "Solomonic"}'
 ```
 
-Output: `flipbook.html` in project root with search bar, responsive grid, and direct links to full-resolution PNGs. Host it on any static server or open locally.
+The output is a self-contained HTML file with search, responsive grid layout, and links to full-resolution PNGs.
 
 ---
+
 ## Jiminy Cricket Module
 
-Drop-in conscience layer for any script.
+A lightweight conscience plugin for runtime checks and ethical reminders:
 
 ```python
-from core.jimminy_cricket_module import create_jiminy
+from agentic_ritual_engine.core.jimminy_cricket_module import create_jiminy
 
 jiminy = create_jiminy(
     checks=[lambda: Path("data").exists()],
@@ -149,85 +209,118 @@ jiminy = create_jiminy(
 with jiminy.conscience("ingest-pipeline"):
     if not jiminy.run_checks():
         raise RuntimeError("Preflight checks failed")
-    # perform ingestion
     jiminy.affirm("Sources ingested successfully")
 ```
 
-Integrate this module into other programs by importing `JiminyCricket` or `create_jiminy`, registering checks (functions returning bool) and optional reminder messages. The context manager auto-logs timing and reminders.
-
-Packaged version available under `packages/jiminy_cricket_tools`. Install with:
+Also available as a standalone package:
 
 ```bash
-pip install -e packages/jiminy_cricket_tools
+pip install -e agentic_ritual_engine/packages/jiminy_cricket_tools
 ```
 
-Then import via `from jiminy_cricket_tools import create_jiminy` in external projects.
-
 ---
-## Command Parser Triggers
 
-`core/command_parser.py` maps phrases to actions:
-- `"KRONKETA"` – meta-agent boardroom stub.
-- `"GAVEL"` – legal simulator placeholder.
-- `"HELLFIRE RECON"` – red-team reconnaissance stub.
-- `"BAYESIAN SOPHIARCH"` – forecasting placeholder.
-- `"SIGIL FLIPBOOK"` – invokes flipbook builder.
-- `"CHRONO_WALKER"` – timeline simulation stub.
-- `"NEPHILIM VOX"` – metalcore generator stub.
+## Testing
 
-Usage:
-```python
-from core.command_parser import CommandParser
+```bash
+# Run the full test suite
+make test
+# or:
+python -m pytest tests/ -v
 
-parser = CommandParser()
-result = parser.parse_and_execute("Fire up the SIGIL FLIPBOOK")
-print(result)
+# Run with coverage
+python -m pytest tests/ --cov=agentic_ritual_engine --cov-report=term-missing
+
+# Lint
+make lint
 ```
 
-`result` returns `{"trigger": "sigil flipbook", "status": "ok", "result": {...}}` with action payloads.
-
 ---
-## Ritual Context Utilities
 
-`compute_context(lat, lon, dt=None)` provides:
-- ISO datetime
-- Latitude/longitude
-- Moon phase name
-- Sunrise / sunset timestamps
-- Weekday string
-- Planetary hour estimate (day/night hour with ruling planet)
+## Docker Deployment
 
-Example:
-```python
-from core.ritual_context import compute_context
+### Build & Run
 
-context = compute_context(36.1699, -115.1398)
-print(context["moon_phase"], context["planetary_hour_guess"])
+```bash
+# Full deploy (build + start + health check)
+./scripts/deploy.sh
+
+# Build only
+./scripts/deploy.sh --build-only
+
+# Restart without rebuild
+./scripts/deploy.sh --restart
 ```
 
-Use the output in UI dashboards, CLI logs, or to annotate flipbooks.
+### Makefile Targets
+
+```
+make help       Show all available targets
+make up         Start all services (build + detach)
+make down       Stop and remove containers
+make build      Build Docker images
+make logs       Tail service logs
+make shell      Open a shell in the API container
+make test       Run the test suite
+make lint       Run ruff linter
+make fmt        Auto-format code
+make clean      Remove caches and build artifacts
+make db-init    Initialise the database
+```
 
 ---
-## Development Notes
 
-- Media output directories: `data/raw/`, `data/raw_scans/`, `data/extracted/`, `data/symbols/`, `data/thumbs/`.
-- Glyph metadata stored in SQLite `data/ritual.db` by default.
-- Update `requirements.txt` and `PyYAML`, `astral`, `pdf2image`, etc., before running ingestion.
-- For headless environments ensure poppler (PDF renderer dependency for `pdf2image`) is installed.
+## Project Layout
+
+```
+Angelic_Ritual_Engine/
+├── agentic_ritual_engine/
+│   ├── core/
+│   │   ├── command_parser.py      # Trigger-based command routing
+│   │   ├── flipbook_builder.py    # Static HTML flipbook generator
+│   │   ├── image_cleaner.py       # OpenCV sigil cleaning + thumbnails
+│   │   ├── import_pipeline.py     # Source ingestion + sigil detection
+│   │   ├── jimminy_cricket_module.py  # Conscience plugin
+│   │   ├── meta_agent.py          # FastAPI factory + meta-agent bootstrap
+│   │   ├── ritual_context.py      # Celestial context (moon, planetary hour)
+│   │   └── symbolic_kb.py         # SQLAlchemy ORM + DAO helpers
+│   ├── data/
+│   │   ├── raw/                   # Downloaded source PDFs
+│   │   └── sources.yaml           # Curated source manifest
+│   ├── docs/                      # Internal planning documents
+│   ├── frontend/
+│   │   └── pulse_map_app.py       # Streamlit Pulse Map dashboard
+│   ├── packages/
+│   │   └── jiminy_cricket_tools/  # Standalone Jiminy Cricket package
+│   ├── scripts/
+│   │   └── ocr_enrich.py          # OCR metadata extraction utility
+│   ├── main.py                    # Typer CLI + FastAPI app entry point
+│   └── requirements.txt           # Pinned dependency versions
+├── tests/                         # Test suite
+├── scripts/
+│   └── deploy.sh                  # Production deploy script
+├── .env.example                   # Environment variable template
+├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+├── pyproject.toml                 # Build config + project metadata
+└── README.md
+```
 
 ---
-## Extending the Engine
 
-Ideas for future modules:
-- Additional detectors for text vs sigil classification.
-- Integrate neural cleanup (U-Net / diffusion-based denoise) before `image_cleaner`.
-- Expand `command_parser` to trigger timeline simulations or community events.
-- Replace Streamlit with immersive Unreal/Unity front-end (see `CONTRIBUTING.md` plans if added).
+## Contributing
 
-Contributions should follow the existing ESM + double-quote coding style, with clear docs of manual verification steps.
+1. Fork the repository and create a feature branch.
+2. Follow the existing code style (enforced by `ruff`).
+3. Write tests for new functionality.
+4. Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`).
+5. Run `make check` before submitting a PR.
+6. Document manual verification steps when cataloging new symbols.
 
 ---
-## Support
 
-Questions or ideas? Document manual steps when cataloging new sigils, cite source licenses, and submit PRs with concise Conventional Commit messages (`feat:`, `fix:`, `chore:`). The Jiminy Cricket module is available to remind you.
-  
+## License
+
+See the project license for details. Source PDFs referenced in `data/sources.yaml` carry their own licenses (mostly Public Domain); review each before redistribution.

@@ -16,7 +16,7 @@ from slugify import slugify
 from tqdm import tqdm
 from sqlalchemy import select
 
-from .symbolic_kb import SymbolicKnowledgeBase, TextSource, upsert_source, upsert_symbol
+from .symbolic_kb import DEFAULT_DB_URL, SymbolicKnowledgeBase, TextSource, upsert_source, upsert_symbol
 
 cli = typer.Typer(help="Acquire sources, render scans, and detect candidate sigils.")
 
@@ -33,7 +33,7 @@ class ImportPipeline:
         for directory in (self.raw_dir, self.raw_scans_dir, self.extracted_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-        self.kb = SymbolicKnowledgeBase(engine_url=engine_url or "sqlite:///data/ritual.db")
+        self.kb = SymbolicKnowledgeBase(engine_url=engine_url or DEFAULT_DB_URL)
 
     # ------------------------------------------------------------------
     # Source ingestion
