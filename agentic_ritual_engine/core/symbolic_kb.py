@@ -1,6 +1,7 @@
 """SQLAlchemy models and data-access helpers for the ritual symbol store."""
 
 from __future__ import annotations
+import os
 from pathlib import Path
 from typing import Any
 
@@ -137,16 +138,23 @@ _engine: Engine | None = None
 _SessionLocal: sessionmaker[Session] | None = None
 
 
-def init_db(engine_url: str = "sqlite:///data/ritual.db") -> None:
+DEFAULT_DB_URL = os.getenv("RITUAL_DB_URL", "sqlite:///data/ritual.db")
+
+
+def init_db(engine_url: str | None = None) -> None:
     """Initialise the database engine and create tables if needed."""
 
     global _engine, _SessionLocal
 
+    engine_url = engine_url or DEFAULT_DB_URL
     url = make_url(engine_url)
-    if url.get_backend_name() == "sqlite" and url.database and url.database != ":memory:":
-        Path(url.database).expanduser().parent.mkdir(parents=True, exist_ok=True)
+    connect_args: dict = {}
+    if url.get_backend_name() == "sqlite":
+        connect_args["check_same_thread"] = False
+        if url.database and url.database != ":memory:":
+            Path(url.database).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
-    _engine = create_engine(engine_url, future=True)
+    _engine = create_engine(engine_url, future=True, connect_args=connect_args)
     _SessionLocal = sessionmaker(
         bind=_engine,
         class_=Session,
@@ -374,7 +382,7 @@ class SymbolicKnowledgeBase:
     """Backwards-compatible wrapper exposing session helpers."""
 
     def __init__(self, engine_url: str | None = None) -> None:
-        self.engine_url = engine_url or "sqlite:///data/ritual.db"
+        self.engine_url = engine_url or DEFAULT_DB_URL
         init_db(self.engine_url)
         self.is_initialized = True
 

@@ -8,9 +8,9 @@ from typing import Any, Dict
 
 import streamlit as st
 
-from core.flipbook_builder import FlipbookBuilder
-from core.ritual_context import compute_context
-from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase
+from ..core.flipbook_builder import FlipbookBuilder
+from ..core.ritual_context import compute_context
+from ..core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase
 from sqlalchemy.orm import selectinload
 
 
@@ -32,8 +32,8 @@ def main() -> None:
         deity = st.text_input("Deity / Spirit")
 
         st.subheader("Context")
-        today = datetime.utcnow().date()
-        now_time = datetime.utcnow().time().replace(second=0, microsecond=0)
+        today = datetime.now(timezone.utc).date()
+        now_time = datetime.now(timezone.utc).time().replace(second=0, microsecond=0)
         date_input = st.date_input("Date", value=today)
         time_input = st.time_input("Time", value=now_time)
         latitude = st.number_input("Latitude", value=0.0, min_value=-90.0, max_value=90.0)

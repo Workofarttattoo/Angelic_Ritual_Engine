@@ -14,13 +14,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from core.command_parser import CommandParser
-from core.flipbook_builder import FlipbookBuilder
-from core.image_cleaner import ImageCleaner
-from core.import_pipeline import ImportPipeline
-from core.meta_agent import MetaAgent
-from core.ritual_context import compute_context
-from core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase, TextSource, init_db
+from .core.command_parser import CommandParser
+from .core.flipbook_builder import FlipbookBuilder
+from .core.image_cleaner import ImageCleaner
+from .core.import_pipeline import ImportPipeline
+from .core.meta_agent import MetaAgent
+from .core.ritual_context import compute_context
+from .core.symbolic_kb import GlyphImage, Symbol, SymbolicKnowledgeBase, TextSource, init_db
 
 cli = typer.Typer(help="Agentic ritual engine orchestration commands.")
 app = FastAPI(title="Agentic Ritual Engine", version="0.2.0")
@@ -249,7 +249,7 @@ def cli_run(api_host: str = "0.0.0.0", api_port: int = 8000) -> None:
     agent.bootstrap()
 
     uvicorn.run(
-        "main:app",
+        "agentic_ritual_engine.main:app",
         host=api_host,
         port=api_port,
         factory=False,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Optional
 
@@ -81,12 +81,12 @@ class JiminyCricket:
     def conscience(self, task_name: str) -> Iterator[None]:
         """Context manager wrapping critical sections with checks and reminders."""
 
-        start = datetime.utcnow()
+        start = datetime.now(timezone.utc)
         self.config.logger.info("Beginning %s with Jiminy Cricket oversight", task_name)
         try:
             yield
         finally:
-            duration = (datetime.utcnow() - start).total_seconds()
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
             self.config.logger.info("Completed %s in %.2fs", task_name, duration)
             self.remind()
 
